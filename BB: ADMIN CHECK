@@ -1,0 +1,255 @@
+#include <amxmodx>
+#include <amxmisc>
+#include <fakemeta>
+#include <fun>
+
+#define PLUGIN "BB: ADMIN CHECK"
+#define VERSION "1.0"
+#define AUTHOR "VINAGHOST"
+
+new text_msg
+const AdminFlag = ADMIN_BAN
+new adminhad, admin[33], p_baocao[33], xuli[33], originold[33][3]
+public plugin_init() {
+	register_plugin(PLUGIN, VERSION, AUTHOR)
+	
+	register_clcmd("say /baocao", "baocao")
+	register_clcmd("say /check", "check", ADMIN_BAN)
+	register_clcmd("say /xong", "done", ADMIN_BAN)
+	
+	text_msg = get_user_msgid("SayText")
+	adminhad = 0
+}
+public telemod(id, target)
+{
+	if (!is_user_alive(id) || !is_user_alive(target)) return;
+	
+	p_baocao[target] = false
+	xuli[id] = true
+	
+	fm_set_entity_visibility(id, 0)
+	
+	new origin[3]
+	get_user_origin(target, origin)
+	get_user_origin(id, originold[id])
+	
+	set_user_origin(id, origin)
+	
+	set_user_noclip(id, 0)
+	
+	client_mau(id, "!g[VNF] !ySau khi xu li xong, !gsay /xong !yde tro lai binh thuong.")
+}
+public done(id, level, cid)
+{
+	if(!cmd_access(id, level, cid, 0)) return PLUGIN_CONTINUE
+	if(!xuli[id]) return PLUGIN_CONTINUE
+	
+	fm_set_entity_visibility(id, 1)
+	set_user_noclip(id, 1)
+	set_user_origin(id, originold[id])
+	return PLUGIN_CONTINUE
+}
+public client_authorized(id)
+{
+	if( is_user_connected(id) )
+	{
+		if (get_user_flags(id) & AdminFlag)
+		{
+			adminhad++
+			admin[id] = true
+		}
+	}
+	p_baocao[id] = false
+	xuli[id] = false
+}
+public client_disconnect(id)
+{
+	if( admin[id] )
+	{
+		adminhad--
+		admin[id] = false
+	}
+	p_baocao[id] = false
+	xuli[id] = false
+}
+public check(id, level, cid)
+{
+	if(!cmd_access(id, level, cid, 0))
+		return PLUGIN_CONTINUE
+	new check_p = menu_create("Check player:^n Nhung name co ten mau \rdo \w la da duoc bao cao", "check_menu")
+	
+	new Players[32], PlayersNum, index
+	get_players(Players, PlayersNum)
+	new PlayerName[43], UserId[6]
+	for(new i ; i < PlayersNum; i++)
+	{
+		index = Players[i]
+		if (index == id ) continue; 
+		get_user_name(index, PlayerName, charsmax(PlayerName))
+		num_to_str(get_user_userid(index), UserId, charsmax(UserId))
+		format(PlayerName, charsmax(PlayerName), "%s%s", p_baocao[index] ? "\r" : "\w", PlayerName)
+		menu_additem(check_p, PlayerName, UserId, 0)
+	}
+	
+	menu_display(id, check_p, 0)
+	return PLUGIN_CONTINUE
+}
+public check_menu(id, menu, item)
+{
+	if(item == MENU_EXIT)
+	{
+		menu_destroy(menu)
+		return;
+	}
+	
+	new UserId[6], Name[32], Access, CallBack
+	menu_item_getinfo(menu, item, Access, UserId, charsmax(UserId), Name, charsmax(Name), CallBack)
+	
+	new IntUserId = str_to_num(UserId)
+	new Target = find_player("k", IntUserId)
+	
+	if(Target)
+	{
+		if (!is_user_alive(id)) return;
+		
+		telemod(id, Target)
+	}
+	else
+		client_mau(id, "!g[VNF] !yXin loi nhung %s chuon roi", Name)
+	
+	menu_destroy(menu)
+}
+public baocao(id)
+{
+	if (adminhad)
+	{
+		new baocao_main = menu_create("Bao cao: ^nChi bao cao khi can su giup do, moi hanh vi spam /baocao se duoc ra dao", "baocao_menu")
+		
+		menu_additem(baocao_main, "Yeu cau tro giup", "mod se teleport toi thang cho ban");
+		menu_additem(baocao_main, "Bao cao nguoi choi pha game", "mod se duoc thong bao de theo doi thanh nien nay")
+		
+		menu_setprop( baocao_main, MPROP_EXIT, MEXIT_ALL );
+		menu_display( id, baocao_main, 0 );
+	}
+	else
+	{
+		client_mau(id,"!g[VNF] !yXin loi, nhung hien tai khong co mod dang onl")
+		client_mau(id,"!g[VNF] !yBan hay len group cua server: !gwww.facebook.com/groups/csvietnamfun !yde bao cao nha")
+	}
+	return PLUGIN_CONTINUE
+}
+public baocao_menu(id, menu, item )
+{
+	switch( item )
+	{
+		case 0:
+		{
+			client_mau(id, "!g[VNF] !yBan da gui yeu cau tro giup, se co mod toi cho ban")
+			new Players[32], Num, index
+			get_players(Players, Num, "c")
+			for(new i; i < Num; i++)
+			{
+				index = Players[i]
+				if(get_user_flags(index) & AdminFlag)
+				{
+					new name[33]
+					get_user_name(id,name,charsmax(name))
+					client_mau(index, "!g[VNF] !y%s yeu cau giup do.", name)
+				}
+			}
+			p_baocao[id] = true
+		}
+		case 1:
+			baocao_player(id)
+	}
+	menu_destroy( menu );
+	return PLUGIN_HANDLED;
+}
+public baocao_player(id)
+{
+	new baocao_p = menu_create("Bao cao player:", "baocao_playermenu")
+	
+	new Players[32], PlayersNum, index
+	get_players(Players, PlayersNum)
+	new PlayerName[32], UserId[6]
+	
+	for(new i ; i < PlayersNum; i++)
+	{
+		index = Players[i]
+		if (index == id ) continue; 
+		get_user_name(index, PlayerName, charsmax(PlayerName))
+		num_to_str(get_user_userid(index), UserId, charsmax(UserId))
+		
+		menu_additem(baocao_p, PlayerName, UserId, 0)
+	}
+	
+	menu_display(id, baocao_p, 0)
+}
+public baocao_playermenu(id, menu, item)
+{
+	if(item == MENU_EXIT)
+	{
+		menu_destroy(menu)
+		return 
+	}
+	
+	new UserId[6], Name[32], Access, CallBack
+	menu_item_getinfo(menu, item, Access, UserId, charsmax(UserId), Name, charsmax(Name), CallBack)
+	
+	new IntUserId = str_to_num(UserId)
+	new Target = find_player("k", IntUserId)
+	
+	if(Target)
+	{
+		client_mau(id, "!g[VNF] !yBan da gui bao cao, mod se kiem tra !g%s ngay", Name)
+		new Players[32], Num, index
+		get_players(Players, Num, "c")
+		for(new i; i < Num; i++)
+		{
+			index = Players[i]
+			if(get_user_flags(index) & AdminFlag)
+			{
+				new nameT[33]
+				get_user_name(id,nameT,charsmax(nameT))
+				client_mau(index, "!g[VNF] !y%s yeu cau kiem tra thanh nien %s.", nameT, Name)
+			}
+		}
+		p_baocao[Target] = true
+	}
+	else
+		client_mau(id, "!g[VNF] !yXin loi nhung %s chuon roi", Name)
+	
+	menu_destroy(menu)
+}
+
+stock client_mau(const id, const input[], any:...) 
+{ 
+	new count = 1, players[32] 
+	
+	static msg[191] 
+	
+	vformat(msg, 190, input, 3) 
+	
+	replace_all(msg, 190, "!g", "^4") 
+	replace_all(msg, 190, "!y", "^1") 
+	replace_all(msg, 190, "!t", "^3") 
+	replace_all(msg, 190, "!t2", "^0") 
+	
+	if (id) players[0] = id; else get_players(players, count, "sch") 
+	
+	for (new i = 0; i < count; i++) 
+	{ 
+		if (is_user_connected(players[i])) 
+		{ 
+			message_begin(MSG_ONE_UNRELIABLE, text_msg, _, players[i]) 
+			write_byte(players[i]) 
+			write_string(msg) 
+			message_end() 
+		} 
+	}  
+}
+stock fm_set_entity_visibility(index, visible = 1) { 
+    set_pev(index, pev_effects, visible == 1 ? pev(index, pev_effects) & ~EF_NODRAW : pev(index, pev_effects) | EF_NODRAW); 
+
+    return 1; 
+}
